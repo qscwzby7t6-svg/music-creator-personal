@@ -33,6 +33,16 @@ const upload = multer({
 
 const hotSongs = [
   {
+    id: 'nuannuan',
+    title: '暖暖',
+    artist: '梁静茹',
+    duration: 265,
+    coverUrl: 'https://p2.music.126.net/VkGpqUQRk3L8Qv6T6g2kCQ==/109951166950853327.jpg',
+    audioUrl: '',
+    playCount: 15000000,
+    category: 'chinese',
+  },
+  {
     id: '1',
     title: '起风了',
     artist: '买辣椒也用券',
