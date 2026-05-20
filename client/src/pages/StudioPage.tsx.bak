@@ -213,7 +213,6 @@ export default function StudioPage() {
     
     await new Promise(resolve => setTimeout(resolve, 3500))
     
-    const songName = generateSongName()
     const generatedLyrics = `【前奏】(8小节钢琴独奏，渐入)
 
 【主歌1】
@@ -227,9 +226,9 @@ export default function StudioPage() {
 像春风拂过脸庞
 
 【副歌】
-${songName}的旋律在心中响起
+${generateSongName()}的旋律在心中响起
 每一个音符都是你的呼吸
-${songName}的旋律在耳边环绕
+${generateSongName()}的旋律在耳边环绕
 这份爱意永远不会停止
 
 【主歌2】
@@ -243,9 +242,9 @@ ${songName}的旋律在耳边环绕
 幸福就在每一天
 
 【副歌】
-${songName}的旋律在心中响起
+${generateSongName()}的旋律在心中响起
 每一个音符都是你的呼吸
-${songName}的旋律在耳边环绕
+${generateSongName()}的旋律在耳边环绕
 这份爱意永远不会停止
 
 【桥段】
@@ -255,9 +254,9 @@ ${songName}的旋律在耳边环绕
 记录每一个美好的瞬间
 
 【副歌】
-${songName}的旋律在心中响起
+${generateSongName()}的旋律在心中响起
 每一个音符都是你的呼吸
-${songName}的旋律在耳边环绕
+${generateSongName()}的旋律在耳边环绕
 这份爱意永远不会停止
 
 【结尾】
@@ -267,7 +266,7 @@ ${songName}的旋律在耳边环绕
 啦啦啦啦～
 永远不分离～
 
-【尾声】(钢琴渐出，淡出)`
+【尾声】(钢琴渐出，淡出)`}
 
     setLyrics(generatedLyrics)
     setCustomLyrics(generatedLyrics)
@@ -349,6 +348,7 @@ ${songName}的旋律在耳边环绕
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900">
+      {/* Hidden Audio Element */}
       <audio
         ref={audioRef}
         src={generatedSong?.audioUrl || ''}
@@ -356,6 +356,7 @@ ${songName}的旋律在耳边环绕
         onEnded={() => setIsPlaying(false)}
       />
 
+      {/* Header */}
       <header className="sticky top-0 z-50 border-b border-white/10 backdrop-blur-sm bg-gray-900/80">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
@@ -367,6 +368,7 @@ ${songName}的旋律在耳边环绕
                 AI Song Generator
               </span>
             </Link>
+
             <div className="text-sm text-gray-400">
               创作工作室
             </div>
@@ -374,6 +376,7 @@ ${songName}的旋律在耳边环绕
         </div>
       </header>
 
+      {/* Progress Bar */}
       <div className="sticky top-16 z-40 bg-gray-900/50 backdrop-blur-sm border-b border-white/10">
         <div className="max-w-7xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between mb-2">
@@ -411,7 +414,10 @@ ${songName}的旋律在耳边环绕
         </div>
       </div>
 
+      {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 py-8">
+
+        {/* Step 0: Select Song */}
         {currentStep === 0 && (
           <div className="space-y-6">
             <div className="text-center mb-8">
@@ -419,12 +425,14 @@ ${songName}的旋律在耳边环绕
               <p className="text-gray-400">选择一首参考歌曲，AI将分析其风格并创作新歌</p>
             </div>
 
+            {/* Search and Filter */}
             <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
               <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
                 <MagnifyingGlassIcon className="w-5 h-5 text-cyan-400" />
                 搜索歌曲
               </h3>
               
+              {/* Search Input */}
               <div className="relative mb-4">
                 <input
                   type="text"
@@ -436,6 +444,7 @@ ${songName}的旋律在耳边环绕
                 <MagnifyingGlassIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               </div>
 
+              {/* Categories */}
               <div className="flex flex-wrap gap-2 mb-6">
                 {categories.map((cat) => (
                   <button
@@ -452,6 +461,7 @@ ${songName}的旋律在耳边环绕
                 ))}
               </div>
 
+              {/* Song List */}
               <div className="space-y-2 max-h-96 overflow-y-auto">
                 {filteredSongs.length > 0 ? (
                   filteredSongs.map((song) => (
@@ -489,6 +499,7 @@ ${songName}的旋律在耳边环绕
               </div>
             </div>
 
+            {/* Selected Song */}
             {sourceSong && (
               <div className="bg-gradient-to-r from-cyan-500/10 to-pink-500/10 border border-cyan-400/30 rounded-2xl p-6">
                 <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
@@ -510,6 +521,7 @@ ${songName}的旋律在耳边环绕
           </div>
         )}
 
+        {/* Step 1: Style Analysis */}
         {currentStep === 1 && (
           <div className="space-y-6">
             <div className="text-center mb-8">
@@ -617,6 +629,7 @@ ${songName}的旋律在耳边环绕
           </div>
         )}
 
+        {/* Step 2: Melody Analysis */}
         {currentStep === 2 && (
           <div className="space-y-6">
             <div className="text-center mb-8">
@@ -732,6 +745,7 @@ ${songName}的旋律在耳边环绕
           </div>
         )}
 
+        {/* Step 3: Lyrics Generation */}
         {currentStep === 3 && (
           <div className="space-y-6">
             <div className="text-center mb-8">
@@ -780,6 +794,7 @@ ${songName}的旋律在耳边环绕
           </div>
         )}
 
+        {/* Step 4: Song Generation */}
         {currentStep === 4 && (
           <div className="space-y-6">
             <div className="text-center mb-8">
@@ -834,9 +849,9 @@ ${songName}的旋律在耳边环绕
                       </div>
                     </div>
 
+                    {/* Audio Player */}
                     <div className="mt-6 p-4 bg-white/5 rounded-xl">
-                      <div className="text-sm text-gray-400 mb-3">🎵 试听</div>
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-4 mb-4">
                         <button
                           onClick={togglePlayPause}
                           className="w-14 h-14 bg-gradient-to-r from-cyan-500 to-pink-500 rounded-full flex items-center justify-center hover:opacity-90 transition-all"
@@ -848,6 +863,7 @@ ${songName}的旋律在耳边环绕
                           )}
                         </button>
                         <div className="flex-1">
+                          <div className="text-white font-semibold mb-1">{generatedSong.title}</div>
                           <input
                             type="range"
                             min="0"
@@ -873,6 +889,7 @@ ${songName}的旋律在耳边环绕
           </div>
         )}
 
+        {/* Step 5: Download */}
         {currentStep === 5 && (
           <div className="space-y-6">
             <div className="text-center mb-8">
@@ -883,6 +900,7 @@ ${songName}的旋律在耳边环绕
             <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-8">
               {generatedSong ? (
                 <div className="space-y-6">
+                  {/* Song Info with Audio Player */}
                   <div className="p-6 bg-gradient-to-r from-cyan-500/10 to-pink-500/10 border border-cyan-400/30 rounded-xl">
                     <div className="flex items-center gap-6 mb-4">
                       <div className="w-24 h-24 bg-gradient-to-br from-cyan-500 to-pink-500 rounded-xl flex items-center justify-center">
@@ -898,6 +916,7 @@ ${songName}的旋律在耳边环绕
                       </div>
                     </div>
 
+                    {/* Audio Player */}
                     <div className="mt-6 p-4 bg-white/5 rounded-xl">
                       <div className="text-sm text-gray-400 mb-3">🎵 试听</div>
                       <div className="flex items-center gap-4">
@@ -932,6 +951,7 @@ ${songName}的旋律在耳边环绕
                     </div>
                   </div>
 
+                  {/* Download Buttons */}
                   <div className="grid md:grid-cols-2 gap-4">
                     <button
                       onClick={() => handleDownload('mp3')}
@@ -971,6 +991,7 @@ ${songName}的旋律在耳边环绕
           </div>
         )}
 
+        {/* Navigation Buttons */}
         <div className="flex items-center justify-between mt-8 pt-6 border-t border-white/10">
           <button
             onClick={handlePrev}
