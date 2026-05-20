@@ -11,6 +11,9 @@ import {
   ArrowDownTrayIcon,
   PlayIcon,
   PauseIcon,
+  PlusIcon,
+  ClockIcon,
+  XMarkIcon,
 } from '@heroicons/react/24/outline'
 import { useAppStore } from '../store/useAppStore'
 
@@ -74,9 +77,13 @@ const mockSongs = [
 
 const songNames = [
   '微风的拥抱', '阳光的温度', '心的方向', '爱的旋律', '温柔的时光',
-  '幸福的味道', '甜蜜的约定', '暖暖的冬季', '春风的呼唤', '星空下的诺言',
-  '指尖的温度', '月光下的誓言', '花开的季节', '雨后的彩虹', '晚风轻唱'
+  '幸福的味道', '甜蜜的约定', '花开的季节', '春风的呼唤', '星空下的诺言',
+  '指尖的温度', '月光下的誓言', '雨后的彩虹', '晚风轻唱', '梦的彼岸'
 ]
+
+// API Keys
+const DEEPSEEK_API_KEY = 'sk-9c295285116547729e8deee1255030aa'
+const MINIMAX_API_KEY = 'sk-cp-M8nlgav6xfT4XWypLAVjq9RpxpDua3Uj2RrxlL87Rdx5Db-QKZLqLKYiwAA2PICAbdZcWCdTcIn2_tg_iJdd2AREkarnEE2xS2epcs3LffEPzv1dV5Dd8A4'
 
 export default function StudioPage() {
   const {
@@ -104,6 +111,15 @@ export default function StudioPage() {
   const [duration, setDuration] = useState(258)
   const audioRef = useRef<HTMLAudioElement>(null)
 
+  // Custom song
+  const [showCustomSong, setShowCustomSong] = useState(false)
+  const [customSongTitle, setCustomSongTitle] = useState('')
+  const [customSongArtist, setCustomSongArtist] = useState('')
+
+  // History
+  const [history, setHistory] = useState<any[]>([])
+  const [showHistory, setShowHistory] = useState(false)
+
   useEffect(() => {
     const styleId = 'studio-global-styles'
     if (!document.getElementById(styleId)) {
@@ -112,6 +128,13 @@ export default function StudioPage() {
       styleEl.textContent = globalStyles
       document.head.appendChild(styleEl)
     }
+
+    // Load history from localStorage
+    const savedHistory = localStorage.getItem('songGenHistory')
+    if (savedHistory) {
+      setHistory(JSON.parse(savedHistory))
+    }
+
     return () => {
       const styleEl = document.getElementById(styleId)
       if (styleEl) {
@@ -121,9 +144,10 @@ export default function StudioPage() {
   }, [])
 
   const filteredSongs = mockSongs.filter(song => {
+    const searchLower = searchQuery.toLowerCase()
     const matchesSearch = searchQuery === '' || 
-      song.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      song.artist.toLowerCase().includes(searchQuery.toLowerCase())
+      song.title.toLowerCase().includes(searchLower) ||
+      song.artist.toLowerCase().includes(searchLower)
     const matchesCategory = selectedCategory === 'all' || song.category === selectedCategory
     return matchesSearch && matchesCategory
   })
@@ -162,15 +186,67 @@ export default function StudioPage() {
     return songNames[index]
   }
 
-  const handleAnalyze = async (type: 'style' | 'melody') => {
-    if (!sourceSong) return
-    
-    setIsAnalyzing(true)
-    
-    await new Promise(resolve => setTimeout(resolve, 2500))
-    
-    if (type === 'style') {
-      setStyleAnalysis({
+  const handleSelectCustomSong = () => {
+    if (customSongTitle && customSongArtist) {
+      const customSong = {
+        id: 'custom-' + Date.now(),
+        title: customSongTitle,
+        artist: customSongArtist,
+        duration: 240,
+        category: 'custom',
+        playCount: 0,
+        audioUrl: '',
+      }
+      setSourceSong(customSong)
+      setShowCustomSong(false)
+    }
+  }
+
+  // DeepSeek API call for style analysis
+  const callDeepSeekStyleAnalysis = async (songTitle: string, artist: string) => {
+    try {
+      const response = await fetch('https://api.deepseek.com/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: 'deepseek-chat',
+          messages: [
+            {
+              role: 'system',
+              content: '你是一个专业的音乐分析专家。请分析以下歌曲，返回JSON格式的分析结果，包含以下字段：genre（曲风类型）、mood（情绪基调）、vocalType（人声特征）、bpm（BPM速度，数字）、instruments（乐器配置，数组）、harmony（和声特点）、mixingStyle（混音风格）、key（调式）、chordProgression（和弦进行）、timeSignature（节拍）、arrangement（编曲结构）、vocalRange（人声音域）、energy（能量等级）、tempoFeel（节奏感受）、confidence（置信度，0-1之间的小数）。不要包含任何其他文字，只返回纯JSON。',
+            },
+            {
+              role: 'user',
+              content: `请分析歌曲《${songTitle}》由${artist}演唱的风格特征。`,
+            },
+          ],
+          temperature: 0.7,
+        }),
+      })
+
+      const data = await response.json()
+      const jsonText = data.choices[0].message.content.trim()
+      
+      // Try to extract JSON if wrapped in markdown
+      let jsonStr = jsonText
+      if (jsonStr.startsWith('```json')) {
+        jsonStr = jsonStr.slice(7).trim()
+      }
+      if (jsonStr.startsWith('```')) {
+        jsonStr = jsonStr.slice(3).trim()
+      }
+      if (jsonStr.endsWith('```')) {
+        jsonStr = jsonStr.slice(0, -3).trim()
+      }
+
+      return JSON.parse(jsonStr)
+    } catch (error) {
+      console.error('DeepSeek API error:', error)
+      // Fallback to mock data
+      return {
         genre: '流行',
         mood: '温暖治愈',
         vocalType: '女声清亮',
@@ -185,10 +261,47 @@ export default function StudioPage() {
         vocalRange: 'G3-C5',
         energy: '中等偏低',
         tempoFeel: '中速抒情',
-        confidence: 0.95,
+        confidence: 0.9,
+      }
+    }
+  }
+
+  // DeepSeek API call for melody analysis
+  const callDeepSeekMelodyAnalysis = async (songTitle: string, artist: string) => {
+    try {
+      const response = await fetch('https://api.deepseek.com/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: 'deepseek-chat',
+          messages: [
+            {
+              role: 'system',
+              content: '你是一个专业的音乐分析专家。请分析以下歌曲的旋律特征，返回JSON格式的分析结果，包含以下字段：pitchRange（音域范围，{min, max}，MIDI音高数值）、avgDuration（平均音符时长，秒）、intervals（主要音程，数组，数字表示度数）、dynamics（力度变化，数组，1-100的数字）、rhythmPattern（节奏模式）、melodicContour（旋律轮廓）、noteDensity（音符密度）、phraseLength（乐句长度）、hookPosition（Hook位置）、vocalMelody（人声旋律特点）、instrumentalMelody（器乐旋律特点）。不要包含任何其他文字，只返回纯JSON。',
+            },
+            {
+              role: 'user',
+              content: `请分析歌曲《${songTitle}》由${artist}演唱的旋律特征。`,
+            },
+          ],
+          temperature: 0.7,
+        }),
       })
-    } else {
-      setMelodyFeatures({
+
+      const data = await response.json()
+      let jsonStr = data.choices[0].message.content.trim()
+      
+      if (jsonStr.startsWith('```json')) jsonStr = jsonStr.slice(7).trim()
+      if (jsonStr.startsWith('```')) jsonStr = jsonStr.slice(3).trim()
+      if (jsonStr.endsWith('```')) jsonStr = jsonStr.slice(0, -3).trim()
+
+      return JSON.parse(jsonStr)
+    } catch (error) {
+      console.error('DeepSeek API error:', error)
+      return {
         pitchRange: { min: 55, max: 82 },
         avgDuration: 0.45,
         intervals: [2, 3, 4, 5, 7, 8],
@@ -200,21 +313,42 @@ export default function StudioPage() {
         hookPosition: '副歌第2句开始',
         vocalMelody: '以三度、六度音程进行',
         instrumentalMelody: '钢琴和弦乐对话',
-      })
+      }
     }
-    
-    setIsAnalyzing(false)
   }
 
-  const handleGenerateLyrics = async () => {
-    if (!styleAnalysis || !melodyFeatures || !sourceSong) return
-    
-    setIsGenerating(true)
-    
-    await new Promise(resolve => setTimeout(resolve, 3500))
-    
-    const songName = generateSongName()
-    const generatedLyrics = `【前奏】(8小节钢琴独奏，渐入)
+  // DeepSeek API call for lyrics generation
+  const callDeepSeekLyricsGeneration = async (style: any, melody: any, songTitle: string) => {
+    try {
+      const response = await fetch('https://api.deepseek.com/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: 'deepseek-chat',
+          messages: [
+            {
+              role: 'system',
+              content: '你是一个专业的歌词创作人。根据提供的歌曲风格和旋律特征，创作一首原创中文歌词。歌词结构包括：前奏、主歌1、副歌、主歌2、副歌、桥段、副歌、结尾。请返回纯文本歌词，不需要JSON格式。',
+            },
+            {
+              role: 'user',
+              content: `风格特征：${JSON.stringify(style)}\n旋律特征：${JSON.stringify(melody)}\n请创作一首名为《${songTitle}》的原创歌词。`,
+            },
+          ],
+          temperature: 0.8,
+          max_tokens: 2000,
+        }),
+      })
+
+      const data = await response.json()
+      return data.choices[0].message.content.trim()
+    } catch (error) {
+      console.error('DeepSeek API error:', error)
+      const songName = generateSongName()
+      return `【前奏】(8小节钢琴独奏，渐入)
 
 【主歌1】
 阳光透过窗帘的缝隙
@@ -268,9 +402,43 @@ ${songName}的旋律在耳边环绕
 永远不分离～
 
 【尾声】(钢琴渐出，淡出)`
+    }
+  }
 
-    setLyrics(generatedLyrics)
-    setCustomLyrics(generatedLyrics)
+  const handleAnalyze = async (type: 'style' | 'melody') => {
+    if (!sourceSong) return
+    
+    setIsAnalyzing(true)
+    
+    try {
+      if (type === 'style') {
+        const analysis = await callDeepSeekStyleAnalysis(sourceSong.title, sourceSong.artist)
+        setStyleAnalysis(analysis)
+      } else {
+        const features = await callDeepSeekMelodyAnalysis(sourceSong.title, sourceSong.artist)
+        setMelodyFeatures(features)
+      }
+    } catch (error) {
+      console.error('Analysis error:', error)
+    }
+    
+    setIsAnalyzing(false)
+  }
+
+  const handleGenerateLyrics = async () => {
+    if (!styleAnalysis || !melodyFeatures || !sourceSong) return
+    
+    setIsGenerating(true)
+    
+    try {
+      const songName = generateSongName()
+      const generatedLyrics = await callDeepSeekLyricsGeneration(styleAnalysis, melodyFeatures, songName)
+      setLyrics(generatedLyrics)
+      setCustomLyrics(generatedLyrics)
+    } catch (error) {
+      console.error('Lyrics generation error:', error)
+    }
+    
     setIsGenerating(false)
   }
 
@@ -279,18 +447,35 @@ ${songName}的旋律在耳边环绕
     
     setIsGenerating(true)
     
-    await new Promise(resolve => setTimeout(resolve, 6000))
-    
-    const songName = generateSongName()
-    
-    setGeneratedSong({
-      id: 'generated-' + Date.now(),
-      title: songName,
-      audioUrl: '/api/audio/generated-demo.mp3',
-      duration: duration,
-      format: 'mp3',
-      createdAt: new Date().toISOString(),
-    })
+    try {
+      const songName = generateSongName()
+      const newSong = {
+        id: 'generated-' + Date.now(),
+        title: songName,
+        audioUrl: '', // Would be filled by MiniMax API
+        duration: 258,
+        format: 'mp3',
+        createdAt: new Date().toISOString(),
+      }
+      setGeneratedSong(newSong)
+
+      // Save to history
+      const newHistoryItem = {
+        id: newSong.id,
+        title: newSong.title,
+        sourceSong: sourceSong.title,
+        sourceArtist: sourceSong.artist,
+        createdAt: new Date().toISOString(),
+        lyrics: lyrics,
+      }
+      
+      const updatedHistory = [newHistoryItem, ...history]
+      setHistory(updatedHistory)
+      localStorage.setItem('songGenHistory', JSON.stringify(updatedHistory))
+
+    } catch (error) {
+      console.error('Song generation error:', error)
+    }
     
     setIsGenerating(false)
   }
@@ -305,7 +490,10 @@ ${songName}的旋律在耳边环绕
       if (isPlaying) {
         audioRef.current.pause()
       } else {
-        audioRef.current.play()
+        audioRef.current.play().catch(err => {
+          console.log('Audio play failed:', err)
+          alert('音频播放功能需要真实的音频文件才能使用。这是演示模式。')
+        })
       }
       setIsPlaying(!isPlaying)
     }
@@ -344,7 +532,25 @@ ${songName}的旋律在耳边环绕
   }
 
   const handleDownload = (format: 'mp3' | 'wav') => {
-    alert(`正在下载 ${generatedSong?.title || '歌曲'}.${format.toUpperCase()}...\n\n(演示模式)`)
+    alert(`正在下载 ${generatedSong?.title || '歌曲'}.${format.toUpperCase()}...\n\n(演示模式，真实下载需要连接真实API)`)
+  }
+
+  const handleReset = () => {
+    setCurrentStep(0)
+    setSourceSong(null)
+    setStyleAnalysis(null)
+    setMelodyFeatures(null)
+    setLyrics(null)
+    setGeneratedSong(null)
+    setCustomLyrics('')
+    setSearchQuery('')
+    setSelectedCategory('all')
+    setIsPlaying(false)
+    setCurrentTime(0)
+  }
+
+  const loadFromHistory = (item: any) => {
+    setShowHistory(false)
   }
 
   return (
@@ -356,6 +562,7 @@ ${songName}的旋律在耳边环绕
         onEnded={() => setIsPlaying(false)}
       />
 
+      {/* Header */}
       <header className="sticky top-0 z-50 border-b border-white/10 backdrop-blur-sm bg-gray-900/80">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
@@ -367,13 +574,20 @@ ${songName}的旋律在耳边环绕
                 AI Song Generator
               </span>
             </Link>
-            <div className="text-sm text-gray-400">
-              创作工作室
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setShowHistory(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-white hover:bg-white/10 transition-all"
+              >
+                <ClockIcon className="w-5 h-5" />
+                <span className="hidden sm:inline">历史记录</span>
+              </button>
             </div>
           </div>
         </div>
       </header>
 
+      {/* Progress Bar */}
       <div className="sticky top-16 z-40 bg-gray-900/50 backdrop-blur-sm border-b border-white/10">
         <div className="max-w-7xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between mb-2">
@@ -383,13 +597,18 @@ ${songName}的旋律在耳边环绕
                 <div key={step.id} className="flex items-center flex-1">
                   <div className="flex flex-col items-center">
                     <div
-                      className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
+                      className={`w-10 h-10 rounded-full flex items-center justify-center transition-all cursor-pointer ${
                         index < currentStep
                           ? 'bg-gradient-to-br from-cyan-400 to-pink-500 text-white'
                           : index === currentStep
                           ? 'bg-cyan-500 text-white ring-4 ring-cyan-500/30'
                           : 'bg-white/5 text-gray-500'
                       }`}
+                      onClick={() => {
+                        if (index <= currentStep) {
+                          setCurrentStep(index)
+                        }
+                      }}
                     >
                       {index < currentStep ? (
                         <CheckCircleIcon className="w-5 h-5" />
@@ -411,20 +630,120 @@ ${songName}的旋律在耳边环绕
         </div>
       </div>
 
+      {/* History Modal */}
+      {showHistory && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70">
+          <div className="bg-gray-900 border border-white/10 rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
+            <div className="flex items-center justify-between p-6 border-b border-white/10">
+              <h2 className="text-xl font-bold text-white">历史记录</h2>
+              <button onClick={() => setShowHistory(false)} className="text-gray-400 hover:text-white">
+                <XMarkIcon className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto max-h-[60vh]">
+              {history.length === 0 ? (
+                <div className="text-center py-12 text-gray-400">
+                  <MusicalNoteIcon className="w-16 h-16 mx-auto mb-4 opacity-30" />
+                  <p>暂无历史记录</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {history.map((item: any) => (
+                    <div
+                      key={item.id}
+                      onClick={() => loadFromHistory(item)}
+                      className="p-4 bg-white/5 rounded-xl border border-white/10 hover:bg-white/10 cursor-pointer transition-all"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-white font-semibold">{item.title}</h4>
+                          <p className="text-gray-400 text-sm">
+                            改编自《{item.sourceSong}》- {item.sourceArtist}
+                          </p>
+                        </div>
+                        <span className="text-gray-500 text-sm">
+                          {new Date(item.createdAt).toLocaleDateString('zh-CN')}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Song Modal */}
+      {showCustomSong && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70">
+          <div className="bg-gray-900 border border-white/10 rounded-2xl max-w-md w-full">
+            <div className="flex items-center justify-between p-6 border-b border-white/10">
+              <h2 className="text-xl font-bold text-white">自定义歌曲</h2>
+              <button onClick={() => setShowCustomSong(false)} className="text-gray-400 hover:text-white">
+                <XMarkIcon className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">歌曲名</label>
+                <input
+                  type="text"
+                  value={customSongTitle}
+                  onChange={(e) => setCustomSongTitle(e.target.value)}
+                  placeholder="输入歌曲名"
+                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-cyan-400/50 transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">歌手名</label>
+                <input
+                  type="text"
+                  value={customSongArtist}
+                  onChange={(e) => setCustomSongArtist(e.target.value)}
+                  placeholder="输入歌手名"
+                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-cyan-400/50 transition-all"
+                />
+              </div>
+              <button
+                onClick={handleSelectCustomSong}
+                disabled={!customSongTitle || !customSongArtist}
+                className="w-full py-3 bg-gradient-to-r from-cyan-500 to-pink-500 rounded-xl text-white font-semibold hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                确认选择
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 py-8">
+        {/* Step 0: Select Song */}
         {currentStep === 0 && (
           <div className="space-y-6">
             <div className="text-center mb-8">
               <h1 className="text-4xl font-bold text-white mb-2">选择歌曲</h1>
-              <p className="text-gray-400">选择一首参考歌曲，AI将分析其风格并创作新歌</p>
+              <p className="text-gray-400">选择一首参考歌曲或输入自定义歌曲</p>
             </div>
 
+            {/* Custom Song Button */}
+            <button
+              onClick={() => setShowCustomSong(true)}
+              className="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl text-white font-semibold hover:opacity-90 transition-all flex items-center justify-center gap-2"
+            >
+              <PlusIcon className="w-6 h-6" />
+              自定义歌曲
+            </button>
+
+            {/* Search and Filter */}
             <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
               <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
                 <MagnifyingGlassIcon className="w-5 h-5 text-cyan-400" />
-                搜索歌曲
+                搜索热门歌曲
               </h3>
               
+              {/* Search Input */}
               <div className="relative mb-4">
                 <input
                   type="text"
@@ -436,6 +755,7 @@ ${songName}的旋律在耳边环绕
                 <MagnifyingGlassIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               </div>
 
+              {/* Categories */}
               <div className="flex flex-wrap gap-2 mb-6">
                 {categories.map((cat) => (
                   <button
@@ -452,6 +772,7 @@ ${songName}的旋律在耳边环绕
                 ))}
               </div>
 
+              {/* Song List */}
               <div className="space-y-2 max-h-96 overflow-y-auto">
                 {filteredSongs.length > 0 ? (
                   filteredSongs.map((song) => (
@@ -489,6 +810,7 @@ ${songName}的旋律在耳边环绕
               </div>
             </div>
 
+            {/* Selected Song */}
             {sourceSong && (
               <div className="bg-gradient-to-r from-cyan-500/10 to-pink-500/10 border border-cyan-400/30 rounded-2xl p-6">
                 <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
@@ -510,6 +832,7 @@ ${songName}的旋律在耳边环绕
           </div>
         )}
 
+        {/* Step 1: Style Analysis */}
         {currentStep === 1 && (
           <div className="space-y-6">
             <div className="text-center mb-8">
@@ -584,7 +907,7 @@ ${songName}的旋律在耳边环绕
                   <div className="p-4 bg-white/5 rounded-xl">
                     <div className="text-sm text-gray-400 mb-3">乐器配置</div>
                     <div className="flex flex-wrap gap-2">
-                      {styleAnalysis.instruments.map((inst, idx) => (
+                      {styleAnalysis.instruments.map((inst: string, idx: number) => (
                         <span key={idx} className="px-3 py-1.5 bg-cyan-500/20 text-cyan-400 rounded-full text-sm">
                           {inst}
                         </span>
@@ -617,6 +940,7 @@ ${songName}的旋律在耳边环绕
           </div>
         )}
 
+        {/* Step 2: Melody Analysis */}
         {currentStep === 2 && (
           <div className="space-y-6">
             <div className="text-center mb-8">
@@ -672,7 +996,7 @@ ${songName}的旋律在耳边环绕
                   <div className="p-4 bg-white/5 rounded-xl">
                     <div className="text-sm text-gray-400 mb-3">力度变化曲线</div>
                     <div className="flex items-end gap-3 h-32">
-                      {melodyFeatures.dynamics.map((dyn, idx) => (
+                      {melodyFeatures.dynamics.map((dyn: number, idx: number) => (
                         <div key={idx} className="flex-1 flex flex-col items-center">
                           <div
                             className="w-full bg-gradient-to-t from-cyan-500 to-pink-500 rounded-t transition-all"
@@ -687,7 +1011,7 @@ ${songName}的旋律在耳边环绕
                   <div className="p-4 bg-white/5 rounded-xl">
                     <div className="text-sm text-gray-400 mb-2">主要音程</div>
                     <div className="flex flex-wrap gap-2">
-                      {melodyFeatures.intervals.map((interval, idx) => (
+                      {melodyFeatures.intervals.map((interval: number, idx: number) => (
                         <span key={idx} className="px-3 py-1.5 bg-purple-500/20 text-purple-400 rounded-full text-sm">
                           {interval}度
                         </span>
@@ -732,6 +1056,7 @@ ${songName}的旋律在耳边环绕
           </div>
         )}
 
+        {/* Step 3: Lyrics Generation */}
         {currentStep === 3 && (
           <div className="space-y-6">
             <div className="text-center mb-8">
@@ -780,6 +1105,7 @@ ${songName}的旋律在耳边环绕
           </div>
         )}
 
+        {/* Step 4: Song Generation */}
         {currentStep === 4 && (
           <div className="space-y-6">
             <div className="text-center mb-8">
@@ -834,6 +1160,7 @@ ${songName}的旋律在耳边环绕
                       </div>
                     </div>
 
+                    {/* Audio Player */}
                     <div className="mt-6 p-4 bg-white/5 rounded-xl">
                       <div className="text-sm text-gray-400 mb-3">🎵 试听</div>
                       <div className="flex items-center gap-4">
@@ -873,6 +1200,7 @@ ${songName}的旋律在耳边环绕
           </div>
         )}
 
+        {/* Step 5: Download */}
         {currentStep === 5 && (
           <div className="space-y-6">
             <div className="text-center mb-8">
@@ -883,6 +1211,7 @@ ${songName}的旋律在耳边环绕
             <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-8">
               {generatedSong ? (
                 <div className="space-y-6">
+                  {/* Song Info with Audio Player */}
                   <div className="p-6 bg-gradient-to-r from-cyan-500/10 to-pink-500/10 border border-cyan-400/30 rounded-xl">
                     <div className="flex items-center gap-6 mb-4">
                       <div className="w-24 h-24 bg-gradient-to-br from-cyan-500 to-pink-500 rounded-xl flex items-center justify-center">
@@ -898,6 +1227,7 @@ ${songName}的旋律在耳边环绕
                       </div>
                     </div>
 
+                    {/* Audio Player */}
                     <div className="mt-6 p-4 bg-white/5 rounded-xl">
                       <div className="text-sm text-gray-400 mb-3">🎵 试听</div>
                       <div className="flex items-center gap-4">
@@ -932,6 +1262,7 @@ ${songName}的旋律在耳边环绕
                     </div>
                   </div>
 
+                  {/* Download Buttons */}
                   <div className="grid md:grid-cols-2 gap-4">
                     <button
                       onClick={() => handleDownload('mp3')}
@@ -949,6 +1280,25 @@ ${songName}的旋律在耳边环绕
                       <div className="font-bold mb-1">下载 WAV</div>
                       <div className="text-sm opacity-80">16bit 无损音质</div>
                     </button>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <button
+                      onClick={handleReset}
+                      className="p-6 bg-white/5 border border-white/10 rounded-xl text-white hover:bg-white/10 transition-all"
+                    >
+                      <MusicalNoteIcon className="w-8 h-8 mx-auto mb-2" />
+                      <div className="font-bold mb-1">创作新歌</div>
+                      <div className="text-sm opacity-80 text-gray-400">重置并开始新创作</div>
+                    </button>
+                    <Link
+                      to="/"
+                      className="p-6 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-xl text-white hover:opacity-90 transition-all text-center"
+                    >
+                      <CheckCircleIcon className="w-8 h-8 mx-auto mb-2" />
+                      <div className="font-bold mb-1">完成</div>
+                      <div className="text-sm opacity-80">返回首页</div>
+                    </Link>
                   </div>
 
                   <div className="p-4 bg-white/5 rounded-xl">
@@ -971,36 +1321,8 @@ ${songName}的旋律在耳边环绕
           </div>
         )}
 
+        {/* Navigation Buttons */}
         <div className="flex items-center justify-between mt-8 pt-6 border-t border-white/10">
           <button
             onClick={handlePrev}
-            disabled={currentStep === 0}
-            className="flex items-center gap-2 px-6 py-3 bg-white/5 border border-white/10 rounded-xl text-white hover:bg-white/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <ArrowLeftIcon className="w-5 h-5" />
-            上一步
-          </button>
-
-          {currentStep < steps.length - 1 ? (
-            <button
-              onClick={handleNext}
-              disabled={!canProceed()}
-              className="flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-cyan-500 to-pink-500 rounded-xl text-white font-semibold hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              下一步
-              <ArrowRightIcon className="w-5 h-5" />
-            </button>
-          ) : (
-            <Link
-              to="/"
-              className="flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-xl text-white font-semibold hover:opacity-90 transition-all"
-            >
-              完成
-              <CheckCircleIcon className="w-5 h-5" />
-            </Link>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
+            disabled={currentStep === 0
