@@ -1,0 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Playfair+Display:wght@400;500;600;700;800&display=swap');
+
+@layer base {
+  body {
+    @apply bg-gray-900 text-white antialiased;
+    font-family: 'Outfit', sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Playfair Display', serif;
+  }
+}
+
+@layer components {
+  .glass {
+    @apply bg-white/5 backdrop-blur-sm border border-white/10;
+  }
+
+  .gradient-text {
+    @apply bg-gradient-to-r from-cyan-400 via-pink-500 to-purple-500 bg-clip-text text-transparent;
+  }
+
+  .btn-primary {
+    @apply px-6 py-3 bg-gradient-to-r from-cyan-500 to-pink-500 rounded-xl text-white font-semibold hover:opacity-90 transition-all;
+  }
+
+  .btn-secondary {
+    @apply px-6 py-3 bg-white/5 border border-white/10 rounded-xl text-white hover:bg-white/10 transition-all;
+  }
+
+  .card {
+    @apply bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl;
+  }
+}
+
+@layer utilities {
+  .animate-delay-1000 {
+    animation-delay: 1000ms;
+  }
+}
